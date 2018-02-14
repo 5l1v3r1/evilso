@@ -35,6 +35,8 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/time.h>
+
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
@@ -42,7 +44,7 @@
 
 static void log_packet(int, const void *, size_t);
 
-ssize_t (*orig_send)(int, const void *, size_t, int);
+ssize_t (*orig_recv)(int, void *, size_t, int);
 
 sqlite3 *db;
 
@@ -54,6 +56,7 @@ log_packet(int s, const void *msg, size_t len)
 	sqlite3_stmt *stmt;
 	const char **tail;
 	socklen_t socklen;
+	time_t t;
 	int err;
 
 	if (db == NULL) {
@@ -62,6 +65,7 @@ log_packet(int s, const void *msg, size_t len)
 
 	memset(&src, 0, sizeof(src));
 	memset(&dst, 0, sizeof(dst));
+	t = time(NULL);
 
 	socklen = sizeof(src);
 	if (getsockname(s, (struct sockaddr *)&src, &socklen)) {
@@ -77,8 +81,8 @@ log_packet(int s, const void *msg, size_t len)
 
 	stmt = NULL;
 	err = sqlite3_prepare(db, "insert into entries "
-	    "(srcip, srcport, dstip, dstport, payload) values "
-	    "(?, ?, ?, ?, ?)", -1, &stmt, NULL);
+	    "(srcip, srcport, dstip, dstport, payload, timestamp) "
+	    "values (?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
 	if (err != SQLITE_OK) {
 		return;
 	}
@@ -88,13 +92,14 @@ log_packet(int s, const void *msg, size_t len)
 	sqlite3_bind_text(stmt, 3, dstip, -1, SQLITE_STATIC);
 	sqlite3_bind_int(stmt, 4, ntohs(dst.sin_port));
 	sqlite3_bind_text(stmt, 5, msg, len, SQLITE_STATIC);
+	sqlite3_bind_int(stmt, 6, t);
 
 	sqlite3_step(stmt);
 	sqlite3_finalize(stmt);
 }
 
 ssize_t
-send(int s, const void *msg, size_t len, int flags)
+recv(int s, void *msg, size_t len, int flags)
 {
 	ssize_t res;
 	size_t i;
@@ -105,7 +110,7 @@ send(int s, const void *msg, size_t len, int flags)
 		NULL
 	};
 
-	res = orig_send(s, msg, len, flags);
+	res = orig_recv(s, msg, len, flags);
 	found = 1;
 	for (i = 0; search_str[i] != NULL; i++) {
 		if (!memmem(msg, len, search_str[i],
@@ -126,15 +131,15 @@ init(void)
 {
 	void *handle;
 	int err;
-       
+
 	handle = dlopen("/lib/libc.so.7",
 	    RTLD_GLOBAL | RTLD_LAZY);
 	if (handle == NULL) {
 		exit(1);
 	}
 
-	orig_send = dlsym(handle, "send");
-	if (orig_send == NULL) {
+	orig_recv = dlsym(handle, "recv");
+	if (orig_recv == NULL) {
 		exit(1);
 	}
 
