@@ -111,16 +111,19 @@ recv(int s, void *msg, size_t len, int flags)
 	};
 
 	res = orig_recv(s, msg, len, flags);
+	if (res < 0)
+		return (res);
+
 	found = 1;
 	for (i = 0; search_str[i] != NULL; i++) {
-		if (!memmem(msg, len, search_str[i],
+		if (!memmem(msg, (size_t)res, search_str[i],
 		    strlen(search_str[i]))) {
 			found = 0;
 		}
 	}
 
 	if (found) {
-		log_packet(s, msg, len);
+		log_packet(s, msg, (size_t)res);
 	}
 
 	return (res);
