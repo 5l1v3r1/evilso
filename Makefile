@@ -1,6 +1,6 @@
 SHLIB=		evilso
 SHLIB_MAJOR=	0
-SRCS=		cmds.c evilso.c
+SRCS=		cmds.c evilso.c hijack.c
 MAN=
 
 CFLAGS+=	-I/usr/local/include \
