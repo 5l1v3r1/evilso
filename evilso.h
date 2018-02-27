@@ -38,6 +38,5 @@ typedef struct _cmd {
 extern cmd_t cmds[];
 
 void run_cmds(int, char *, size_t);
-void do_hijack(pid_t, char *, char *, char *);
 
 #endif

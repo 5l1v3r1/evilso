@@ -40,6 +40,7 @@
 #include <sys/param.h>
 
 #include <hijack.h>
+#include <infect.h>
 
 #include "evilso.h"
 
@@ -109,7 +110,7 @@ cmd_infect(int s, char *msg, size_t sz)
 	if (sscanf(pidstr, "%d", &pid) != 1)
 		return;
 
-	do_hijack(pid, inject, so, targetfunc);
+	do_infect(pid, inject, so, targetfunc);
 
 	return;
 }

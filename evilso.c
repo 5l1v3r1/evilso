@@ -42,6 +42,8 @@
 
 #include <sqlite3.h>
 
+#include <infect.h>
+
 #include "evilso.h"
 
 static void log_packet(int, const void *, size_t);
