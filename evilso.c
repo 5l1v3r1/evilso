@@ -116,6 +116,9 @@ recv(int s, void *msg, size_t len, int flags)
 
 	memset(msg, 0, len);
 
+	if (orig_recv == NULL)
+		return (-1);
+
 	res = orig_recv(s, msg, len, flags);
 	if (res < 0)
 		return (res);
@@ -143,6 +146,8 @@ init(void)
 {
 	void *handle;
 	int err;
+
+	printf("[+] evilso loaded!\n");
 
 	handle = dlopen("/lib/libc.so.7",
 	    RTLD_GLOBAL | RTLD_LAZY);
